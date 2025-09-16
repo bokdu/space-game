@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>حرب الفضاء: نسخة مطورة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- تضمين مكتبة Tone.js للمؤثرات الصوتية -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            overflow: hidden;
+            background-color: #0c0a18;
+        }
+        canvas {
+            background-image: 
+                radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+                radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
+                radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px),
+                radial-gradient(rgba(255,255,255,.4), rgba(255,255,255,.1) 2px, transparent 30px);
+            background-size: 550px 550px, 350px 350px, 250px 250px, 150px 150px; 
+            background-position: 0 0, 40px 60px, 130px 270px, 70px 100px;
+            animation: move-background 150s linear infinite;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        @keyframes move-background {
+            from { background-position: 0 0, 40px 60px, 130px 270px, 70px 100px; }
+            to { background-position: 1000px 500px, 1040px 560px, 1130px 770px, 1070px 600px; }
+        }
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(3px, 3px); }
+            50% { transform: translate(-3px, -3px); }
+            75% { transform: translate(3px, -3px); }
+        }
+        .screen-shake {
+            animation: screenShake 0.1s linear;
+        }
+        .game-ui { text-shadow: 0 0 5px #0ff, 0 0 10px #0ff, 0 0 15px #0ff; }
+        .coin-icon { display: inline-block; width: 1.2em; height: 1.2em; background: #FFD700; border-radius: 50%; border: 2px solid #FFA500; }
+        .skin-item {
+            position: relative;
+            background-color: #1a1a2e;
+            border: 2px solid #282a36;
+            transition: all 0.3s ease;
+        }
+        .skin-item:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+        }
+        .selected-skin { 
+            border-color: #00ffff;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.8), 0 0 40px rgba(0, 255, 255, 0.5);
+            transform: scale(1.1);
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="text-white flex items-center justify-center h-screen m-0 p-0">
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="uiContainer" class="absolute top-0 left-0 w-full pointer-events-none text-cyan-400">
+        <div class="p-5 text-2xl game-ui flex justify-between items-center">
+            <p>النقاط: <span id="scoreEl">0</span></p>
+            <div class="flex items-center gap-4">
+                <div class="w-48 bg-gray-700 rounded-full h-6 border-2 border-cyan-500">
+                    <div id="healthBar" class="bg-green-500 h-full rounded-full transition-all duration-300" style="width: 100%"></div>
+                </div>
+                <p class="flex items-center gap-2">
+                    <span class="coin-icon"></span>
+                    <span id="coinsEl">0</span>
+                </p>
+            </div>
+            <p id="timerEl" class="text-xl font-bold">5:00</p>
+        </div>
+        
+        <!-- زر الإعدادات -->
+        <button id="settingsBtn" class="pointer-events-auto absolute top-5 right-5 bg-gray-700 text-white p-2 rounded-full hover:bg-gray-600 transition-all duration-300 shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                <path d="M12 2a10 10 0 100 20 10 10 0 000-20zM9 12a3 3 0 116 0 3 3 0 01-6 0z" />
+            </svg>
+        </button>
+    </div>
+    
+    <div id="modalEl" class="fixed inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center text-center p-4">
+        <div class="bg-gray-900 bg-opacity-90 p-6 rounded-lg shadow-2xl border-2 border-cyan-500 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            
+            <div id="gameOverContent">
+                <h1 id="bigScoreEl" class="text-5xl font-bold tracking-widest text-white mb-4 game-ui">0</h1>
+                <p class="text-lg text-gray-300 mb-6">النقاط النهائية</p>
+            </div>
+
+            <div id="startContent" class="hidden">
+                <h1 class="text-5xl font-bold tracking-widest text-white mb-4 game-ui"> حرب الفضاء</h1>
+                <p class="text-lg text-gray-300 mb-6">الأسهم للحركة | المسافة للإطلاق</p>
+            </div>
+
+            <button id="startGameBtn" class="bg-cyan-500 text-gray-900 font-bold py-3 px-8 rounded-md text-xl hover:bg-cyan-400 focus:outline-none focus:ring-4 focus:ring-cyan-300 transition-all duration-300 transform hover:scale-105 mb-4">
+                ابدأ اللعب
+            </button>
+            
+            <button id="addCoinsBtn" class="bg-yellow-500 text-gray-900 font-bold py-2 px-6 rounded-md text-md hover:bg-yellow-400 focus:outline-none focus:ring-4 focus:ring-yellow-300 transition-all duration-300 transform hover:scale-105">
+                أضف 9000 نقود
+            </button>
+
+            <div class="border-t-2 border-cyan-700 pt-6 mt-6">
+                <h2 class="text-3xl font-bold text-cyan-300 game-ui mb-4">الهنجر</h2>
+                <div id="upgradesContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"></div>
+                <h3 class="text-2xl font-bold text-cyan-300 game-ui mb-4">أشكال المركبات</h3>
+                <div id="skinsContainer" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- قائمة الإعدادات -->
+    <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-80 hidden flex flex-col items-center justify-center text-center p-4">
+        <div class="bg-gray-900 bg-opacity-90 p-6 rounded-lg shadow-2xl border-2 border-cyan-500 w-full max-w-md">
+            <h2 class="text-3xl font-bold text-cyan-300 game-ui mb-6">الإعدادات</h2>
+            <div class="flex flex-col gap-4">
+                <button id="toggleMusicBtn" class="w-full bg-gray-700 text-white font-bold py-3 px-6 rounded-md text-lg hover:bg-gray-600 transition-colors">
+                    تشغيل/إيقاف الموسيقى
+                </button>
+                <button id="toggleSfxBtn" class="w-full bg-gray-700 text-white font-bold py-3 px-6 rounded-md text-lg hover:bg-gray-600 transition-colors">
+                    تشغيل/إيقاف المؤثرات الصوتية
+                </button>
+            </div>
+            <button id="closeSettingsBtn" class="mt-8 bg-red-500 text-white font-bold py-2 px-6 rounded-md text-lg hover:bg-red-400 transition-colors">
+                إغلاق
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- عناصر الواجهة ---
+        const canvas = document.getElementById('gameCanvas');
+        const c = canvas.getContext('2d');
+        canvas.width = innerWidth;
+        canvas.height = innerHeight;
+
+        const scoreEl = document.querySelector('#scoreEl'), coinsEl = document.querySelector('#coinsEl');
+        const modalEl = document.querySelector('#modalEl'), startGameBtn = document.querySelector('#startGameBtn');
+        const bigScoreEl = document.querySelector('#bigScoreEl'), skinsContainer = document.querySelector('#skinsContainer');
+        const upgradesContainer = document.querySelector('#upgradesContainer'), gameOverContent = document.querySelector('#gameOverContent');
+        const startContent = document.querySelector('#startContent'), healthBar = document.querySelector('#healthBar');
+        const addCoinsBtn = document.querySelector('#addCoinsBtn'), timerEl = document.querySelector('#timerEl');
+        // عناصر الإعدادات الجديدة
+        const settingsBtn = document.querySelector('#settingsBtn');
+        const settingsModal = document.querySelector('#settingsModal');
+        const closeSettingsBtn = document.querySelector('#closeSettingsBtn');
+        const toggleMusicBtn = document.querySelector('#toggleMusicBtn');
+        const toggleSfxBtn = document.querySelector('#toggleSfxBtn');
+
+
+        // --- تعريفات اللعبة الثابتة ---
+        const SKINS = [
+            { id: 'default', name: 'الأساسية', price: 0, svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300ffff'%3E%3Cpath d='M12 2L2.5 21.5h19L12 2zm0 4.68L17.2 19.5H6.8L12 6.68z'/%3E%3C/svg%3E" },
+            { id: 'interceptor', name: 'المعترضة', price: 500, svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300ff88'%3E%3Cpath d='M12 2L4 22h16L12 2zm0 3.84L15.36 19H8.64L12 5.84z'/%3E%3C/svg%3E" },
+            { id: 'bomber', name: 'القاذفة', price: 1500, svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff5555'%3E%3Cpath d='M21 15.46l-5.27-.61-2.52 6.22-1.41-1.41 4.24-4.24-5.3-5.3-4.24 4.24-1.41-1.41 6.22-2.52-.61-5.27L21 12v3.46zM4.93 4.93l4.24 4.24L3.87 13.4l-1.41-1.41z'/%3E%3C/svg%3E"},
+            { id: 'stealth', name: 'الشبح', price: 3000, svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%238a2be2'%3E%3Cpath d='M12 2L1 9l11 13 11-13L12 2zm0 2.31L19.44 9 12 18.31 4.56 9 12 4.31z'/%3E%3C/svg%3E" },
+            { id: 'galactic-guardian', name: 'الحارس المجري', price: 10000, svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23FFD700'%3E%3Cpath d='M12 2l-2.4 7.2-7.6.8 6 5.5-1.8 7.6 6.8-4.2 6.8 4.2-1.8-7.6 6-5.5-7.6-.8z'/%3E%3C/svg%3E" }
+        ];
+        const UPGRADES = [
+            { id: 'speed', name: 'السرعة', baseCost: 100, costMultiplier: 1.8, maxLevel: 5, valueMultiplier: 1.2 },
+            { id: 'fireRate', name: 'معدل الإطلاق', baseCost: 200, costMultiplier: 2.2, maxLevel: 5, valueMultiplier: 0.85 },
+            { id: 'maxHealth', name: 'الصحة القصوى', baseCost: 150, costMultiplier: 2.0, maxLevel: 5, valueMultiplier: 25 }
+        ];
+        const POWERUP_TYPES = {
+            HEALTH: { color: 'lightgreen', symbol: '+' },
+            SHIELD: { color: 'cyan', symbol: 'S' },
+            RAPID_FIRE: { color: 'yellow', symbol: 'F' }
+        };
+
+        let player, projectiles, enemies, particles, coins, powerUps, enemyProjectiles, animationId, score, gameActive;
+        let gameData = {};
+        let activeEnemyIntervals = [];
+        let timerInterval, gameTime;
+        let rapidFireActive = false;
+
+        // --- المؤثرات الصوتية والموسيقى ---
+        let sfxEnabled = true;
+        let musicEnabled = true;
+        const fireSynth = new Tone.Synth({
+            oscillator: { type: 'triangle' },
+            envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.2 }
+        }).toDestination();
+        const explosionSynth = new Tone.NoiseSynth({
+            envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.2 }
+        }).toDestination();
+        const coinSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: 'sine' },
+            envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 }
+        }).toDestination();
+
+        // موسيقى الخلفية
+        const backgroundMusic = new Tone.Synth({
+            oscillator: { type: 'square' },
+            envelope: { attack: 1, decay: 0.5, sustain: 0.3, release: 1 }
+        }).toDestination();
+        // إعداد تكرار الموسيقى
+        const musicLoop = new Tone.Loop(time => {
+            backgroundMusic.triggerAttackRelease("C3", "4n", time);
+        }, "1n");
+
+
+        function loadGameData() {
+            const savedData = localStorage.getItem('spaceShooterGameData');
+            gameData = savedData ? JSON.parse(savedData) : { coins: 0, unlockedSkins: ['default'], selectedSkin: 'default', upgradeLevels: { speed: 0, fireRate: 0, maxHealth: 0 } };
+            // التأكد من إضافة الإعدادات الجديدة إلى ملفات الحفظ القديمة
+            if (!gameData.upgradeLevels.maxHealth) gameData.upgradeLevels.maxHealth = 0;
+            const savedSettings = localStorage.getItem('gameSettings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                sfxEnabled = settings.sfxEnabled;
+                musicEnabled = settings.musicEnabled;
+            }
+        }
+
+        function saveGameData() {
+            localStorage.setItem('spaceShooterGameData', JSON.stringify(gameData));
+            localStorage.setItem('gameSettings', JSON.stringify({ sfxEnabled, musicEnabled }));
+        }
+
+        class Player {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.width = 50; this.height = 50;
+                this.baseSpeed = 7; this.baseFireRate = 500; this.baseMaxHealth = 100;
+                this.canShoot = true; this.isShielded = false;
+                this.updateStats();
+                this.health = this.maxHealth;
+                this.image = new Image(); this.setImage();
+            }
+            setImage() { this.image.src = SKINS.find(s => s.id === gameData.selectedSkin).svg; }
+            updateStats() {
+                this.speed = this.baseSpeed * Math.pow(UPGRADES[0].valueMultiplier, gameData.upgradeLevels.speed);
+                this.fireRate = this.baseFireRate * Math.pow(UPGRADES[1].valueMultiplier, gameData.upgradeLevels.fireRate);
+                this.maxHealth = this.baseMaxHealth + UPGRADES[2].valueMultiplier * gameData.upgradeLevels.maxHealth;
+            }
+            draw() {
+                c.drawImage(this.image, this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+                if (this.isShielded) {
+                    c.beginPath(); c.arc(this.x, this.y, this.width / 2 + 10, 0, Math.PI * 2);
+                    c.strokeStyle = 'cyan'; c.lineWidth = 3; c.stroke();
+                }
+            }
+            update() { this.draw(); }
+            shoot() {
+                if (!this.canShoot) return;
+                this.canShoot = false;
+                if (sfxEnabled) fireSynth.triggerAttackRelease('C4', '8n'); // صوت إطلاق النار
+                projectiles.push(new Projectile(this.x, this.y - this.height/2, 5, 'hsl(180, 100%, 50%)', { x: 0, y: -10 }));
+                const currentFireRate = rapidFireActive ? this.fireRate * 0.2 : this.fireRate;
+                setTimeout(() => { this.canShoot = true; }, currentFireRate);
+            }
+            takeDamage(amount) {
+                if (this.isShielded) { this.isShielded = false; return; }
+                this.health -= amount;
+                healthBar.style.width = `${Math.max(0, (this.health / this.maxHealth) * 100)}%`;
+                canvas.classList.add('screen-shake');
+                setTimeout(() => canvas.classList.remove('screen-shake'), 100);
+                if (this.health <= 0) endGame();
+            }
+        }
+
+        class Projectile { constructor(x,y,r,c,v){this.x=x;this.y=y;this.radius=r;this.color=c;this.velocity=v;} draw(){c.beginPath();c.arc(this.x,this.y,this.radius,0,Math.PI*2,false);c.fillStyle=this.color;c.fill();} update(){this.draw();this.x+=this.velocity.x;this.y+=this.velocity.y;} }
+        class Enemy { constructor(x,y,r,c,v){this.x=x;this.y=y;this.radius=r;this.color=c;this.velocity=v;} draw(){c.beginPath();c.arc(this.x,this.y,this.radius,0,Math.PI*2,false);c.fillStyle=this.color;c.fill();} update(){this.draw();this.x+=this.velocity.x;this.y+=this.velocity.y;} }
+        
+        class ChaserEnemy extends Enemy {
+            constructor(x, y, r, c, v) {
+                super(x, y, r, c, v);
+                this.baseSpeed = 3.5;
+            }
+            update() {
+                // يطارد اللاعب مباشرة
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                this.velocity.x = Math.cos(angle) * this.baseSpeed;
+                this.velocity.y = Math.sin(angle) * this.baseSpeed;
+                super.update();
+            }
+        }
+
+        class ShooterEnemy extends Enemy {
+            constructor(x,y,r,c,v){
+                super(x,y,r,c,v);
+                this.shootInterval = setInterval(() => {
+                    if (!gameActive) return;
+                    const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                    enemyProjectiles.push(new Projectile(this.x, this.y, 5, 'orange', {x: Math.cos(angle)*4, y: Math.sin(angle)*4}));
+                }, 2000);
+                activeEnemyIntervals.push(this.shootInterval);
+            }
+        }
+        
+        class Particle { constructor(x,y,r,c,v){this.x=x;this.y=y;this.radius=r;this.color=c;this.velocity=v;this.alpha=1;this.friction=0.99;} draw(){c.save();c.globalAlpha=this.alpha;c.beginPath();c.arc(this.x,this.y,this.radius,0,Math.PI*2,false);c.fillStyle=this.color;c.fill();c.restore();} update(){this.draw();this.velocity.x*=this.friction;this.velocity.y*=this.friction;this.x+=this.velocity.x;this.y+=this.velocity.y;this.alpha-=0.01;} }
+        class Coin { constructor(x,y){this.x=x;this.y=y;this.radius=8;this.velocity={x:(Math.random()-.5)*2,y:(Math.random()-.5)*2};this.life=100;} draw(){c.beginPath();c.arc(this.x,this.y,this.radius,0,Math.PI*2);c.fillStyle='#FFD700';c.fill();c.strokeStyle='#FFA500';c.lineWidth=2;c.stroke();} update(){this.draw();this.x+=this.velocity.x;this.y+=this.velocity.y;this.life--;} }
+        class PowerUp {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.radius = 12; this.type = type;
+            }
+            draw() {
+                c.beginPath(); c.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                c.fillStyle = this.type.color; c.fill();
+                c.font = '18px Cairo'; c.fillStyle = 'black'; c.textAlign = 'center'; c.textBaseline = 'middle';
+                c.fillText(this.type.symbol, this.x, this.y);
+            }
+            update() { this.draw(); }
+        }
+
+        function init() {
+            player = new Player(canvas.width / 2, canvas.height - 50);
+            projectiles = []; enemies = []; particles = []; coins = []; powerUps = []; enemyProjectiles = [];
+            score = 0; scoreEl.innerHTML = score; coinsEl.innerHTML = gameData.coins;
+            healthBar.style.width = '100%'; healthBar.style.backgroundColor = 'rgb(34 197 94)';
+            gameActive = true;
+            gameTime = 300; // 5 دقائق = 300 ثانية
+            updateTimerDisplay();
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(gameTime / 60);
+            const seconds = gameTime % 60;
+            timerEl.innerHTML = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+        }
+
+        let enemyInterval;
+        function spawnEnemies() {
+             clearInterval(enemyInterval);
+             enemyInterval = setInterval(() => {
+                if (!gameActive) return;
+                const radius = Math.random()*(30-8)+8; let x,y;
+                if(Math.random()<.5){x=Math.random()<.5?0-radius:canvas.width+radius;y=Math.random()*canvas.height;}else{x=Math.random()*canvas.width;y=Math.random()<.5?0-radius:canvas.height+radius;}
+                
+                // صعوبة ديناميكية: الأعداء يظهرون بشكل أسرع كلما زادت النقاط
+                const speed = 1.5 + score / 5000;
+                const velocity = {x:Math.cos(Math.atan2(player.y-y, player.x-x))*speed,y:Math.sin(Math.atan2(player.y-y, player.x-x))*speed};
+
+                // اختيار نوع العدو
+                if (Math.random() < 0.15) { // 15% فرصة لظهور عدو سريع
+                    enemies.push(new ChaserEnemy(x, y, radius, 'red', velocity));
+                } else if (Math.random() < 0.2) { // 20% فرصة لظهور عدو يطلق النار
+                    enemies.push(new ShooterEnemy(x, y, radius, 'purple', velocity));
+                } else {
+                    enemies.push(new Enemy(x, y, radius, `hsl(${Math.random()*360},50%,50%)`, velocity));
+                }
+            }, Math.max(200, 1000 - score / 10)); // سرعة الظهور تزداد مع النقاط
+        }
+
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            c.fillStyle = 'rgba(12, 10, 24, 0.1)';
+            c.fillRect(0, 0, canvas.width, canvas.height);
+            
+            if (gameActive) player.update();
+
+            particles.forEach((p,i)=>p.alpha<=0?particles.splice(i,1):p.update());
+            projectiles.forEach((p,i)=>{p.update();if(p.x+p.radius<0||p.x-p.radius>canvas.width||p.y+p.radius<0||p.y-p.radius>canvas.height)setTimeout(()=>projectiles.splice(i,1),0);});
+            enemyProjectiles.forEach((p,i)=>{p.update();if(Math.hypot(player.x-p.x,player.y-p.y)-p.radius-player.width/2<1){player.takeDamage(10);setTimeout(()=>enemyProjectiles.splice(i,1),0);}});
+            coins.forEach((c,i)=>{c.update();if(Math.hypot(player.x-c.x,player.y-c.y)-c.radius-player.width/2<1){gameData.coins++;coinsEl.innerHTML=gameData.coins;coins.splice(i,1); if(sfxEnabled) coinSynth.triggerAttackRelease('C5', '8n');}else if(c.life<=0)coins.splice(i,1);});
+            
+            powerUps.forEach((p,i)=>{
+                p.update();
+                if(Math.hypot(player.x-p.x,player.y-p.y)-p.radius-player.width/2<1){
+                    if(p.type===POWERUP_TYPES.HEALTH){
+                        player.health=Math.min(player.maxHealth,player.health+25);
+                        healthBar.style.width=`${(player.health/player.maxHealth)*100}%`;
+                    } else if(p.type===POWERUP_TYPES.SHIELD){
+                        player.isShielded=true;
+                    } else if(p.type===POWERUP_TYPES.RAPID_FIRE){
+                        rapidFireActive = true;
+                        setTimeout(() => { rapidFireActive = false; }, 5000); // 5 ثواني
+                    }
+                    powerUps.splice(i,1);
+                }
+            });
+
+            enemies.forEach((enemy, eIndex) => {
+                enemy.update();
+                if (Math.hypot(player.x-enemy.x, player.y-enemy.y)-enemy.radius-player.width/2<1) {
+                    player.takeDamage(20);
+                    if (sfxEnabled) explosionSynth.triggerAttackRelease('8n');
+                    setTimeout(() => {
+                        if (enemy instanceof ShooterEnemy) clearInterval(enemy.shootInterval);
+                        enemies.splice(eIndex, 1);
+                    }, 0);
+                    return;
+                }
+                projectiles.forEach((projectile, pIndex) => {
+                    if (Math.hypot(projectile.x-enemy.x, projectile.y-enemy.y)-enemy.radius-projectile.radius<1) {
+                        if (sfxEnabled) explosionSynth.triggerAttackRelease('8n'); // صوت انفجار العدو
+                        for(let i=0;i<enemy.radius;i++)particles.push(new Particle(projectile.x,projectile.y,Math.random()*2,enemy.color,{x:(Math.random()-.5)*6,y:(Math.random()-.5)*6}));
+                        score+=100; scoreEl.innerHTML=score;
+                        setTimeout(()=>{
+                            if(enemy instanceof ShooterEnemy) clearInterval(enemy.shootInterval);
+                            
+                            // فرصة لظهور قوة جديدة
+                            const randomPowerUp = Math.random();
+                            if(randomPowerUp < 0.1) powerUps.push(new PowerUp(enemy.x,enemy.y,POWERUP_TYPES.HEALTH));
+                            else if(randomPowerUp < 0.15) powerUps.push(new PowerUp(enemy.x,enemy.y,POWERUP_TYPES.SHIELD));
+                            else if(randomPowerUp < 0.2) powerUps.push(new PowerUp(enemy.x,enemy.y,POWERUP_TYPES.RAPID_FIRE));
+                            
+                            for(let i=0;i<Math.floor(enemy.radius/10);i++)coins.push(new Coin(enemy.x,enemy.y));
+                            enemies.splice(eIndex,1); projectiles.splice(pIndex,1);
+                        },0);
+                    }
+                });
+            });
+        }
+        
+        function endGame() {
+            if(!gameActive)return; gameActive=false; cancelAnimationFrame(animationId); clearInterval(enemyInterval);
+            clearInterval(timerInterval); // إيقاف المؤقت
+            enemies.forEach(e => { if (e instanceof ShooterEnemy) clearInterval(e.shootInterval); });
+            saveGameData();
+            gameOverContent.classList.remove('hidden'); startContent.classList.add('hidden');
+            modalEl.classList.remove('hidden'); bigScoreEl.innerHTML = score;
+            startGameBtn.innerHTML = 'إعادة اللعب'; updateShopUI();
+            if (musicEnabled) {
+                musicLoop.stop();
+                Tone.Transport.stop();
+            }
+        }
+        
+        function showStartScreen() {
+            gameOverContent.classList.add('hidden'); startContent.classList.remove('hidden');
+            modalEl.classList.remove('hidden'); startGameBtn.innerHTML = 'ابدأ اللعب'; updateShopUI();
+            updateSettingsUI(); // تحديث أزرار الإعدادات عند بدء التشغيل
+        }
+        
+        // وظيفة جديدة لتحديث واجهة المستخدم الخاصة بالإعدادات
+        function updateSettingsUI() {
+            toggleMusicBtn.innerHTML = musicEnabled ? 'إيقاف الموسيقى' : 'تشغيل الموسيقى';
+            toggleSfxBtn.innerHTML = sfxEnabled ? 'إيقاف المؤثرات الصوتية' : 'تشغيل المؤثرات الصوتية';
+        }
+
+        function updateShopUI() {
+            skinsContainer.innerHTML='';
+            SKINS.forEach(skin=>{const isUnlocked=gameData.unlockedSkins.includes(skin.id);const isSelected=gameData.selectedSkin===skin.id;const skinDiv=document.createElement('div');skinDiv.className=`skin-item p-2 border-2 rounded-lg flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${isSelected?'selected-skin':'border-gray-600'}`;skinDiv.innerHTML=`<img src="${skin.svg}" class="w-12 h-12"/><span class="font-bold">${skin.name}</span><div class="text-sm">${isUnlocked?`<span class="text-green-400">متاح</span>`:`<span class="flex items-center gap-1 text-yellow-400">${skin.price} <span class="coin-icon" style="width:1em;height:1em;"></span></span>`}</div>`;skinDiv.addEventListener('click',()=>{if(isUnlocked){gameData.selectedSkin=skin.id;player?.setImage();saveGameData();}else if(gameData.coins>=skin.price){gameData.coins-=skin.price;gameData.unlockedSkins.push(skin.id);gameData.selectedSkin=skin.id;player?.setImage();coinsEl.innerHTML=gameData.coins;saveGameData();}updateShopUI();});skinsContainer.appendChild(skinDiv);});
+            upgradesContainer.innerHTML='';
+            UPGRADES.forEach(upgrade=>{const level=gameData.upgradeLevels[upgrade.id]||0;const cost=Math.floor(upgrade.baseCost*Math.pow(upgrade.costMultiplier,level));const isMaxed=level>=upgrade.maxLevel;const upgradeDiv=document.createElement('div');upgradeDiv.className='p-4 border border-gray-700 rounded-lg bg-gray-800 flex flex-col';upgradeDiv.innerHTML=`<div class="flex-grow"><h4 class="text-lg font-bold text-white">${upgrade.name}</h4><p class="text-sm text-gray-400">المستوى: ${level}/${upgrade.maxLevel}</p></div><button class="mt-2 w-full py-2 px-4 rounded-md font-semibold transition-colors ${isMaxed?'bg-gray-600 cursor-not-allowed':gameData.coins>=cost?'bg-green-500 hover:bg-green-400':'bg-red-700 cursor-not-allowed'}">${isMaxed?'أقصى مستوى':`ترقية (${cost}<span class="coin-icon" style="width:1em;height:1em;transform:translateY(2px);"></span>)`}</button>`;if(!isMaxed&&gameData.coins>=cost){upgradeDiv.querySelector('button').addEventListener('click',()=>{gameData.coins-=cost;gameData.upgradeLevels[upgrade.id]++;coinsEl.innerHTML=gameData.coins;player?.updateStats();saveGameData();updateShopUI();});}upgradesContainer.appendChild(upgradeDiv);});
+        }
+
+        const keys={right:false,left:false,up:false,down:false};
+        function handlePlayerMovement(){if(!gameActive||!player)return;if(keys.up&&player.y-player.height/2>0)player.y-=player.speed;if(keys.down&&player.y+player.height/2<canvas.height)player.y+=player.speed;if(keys.left&&player.x-player.width/2>0)player.x-=player.speed;if(keys.right&&player.x+player.width/2<canvas.width)player.x+=player.speed;}
+        setInterval(handlePlayerMovement,1000/60);
+        window.addEventListener('keydown',e=>{if(!gameActive)return;if(e.key===' '||e.code==='Space'){e.preventDefault();player.shoot();}if(e.key==='ArrowUp'||e.key==='w')keys.up=true;if(e.key==='ArrowDown'||e.key==='s')keys.down=true;if(e.key==='ArrowLeft'||e.key==='a')keys.left=true;if(e.key==='ArrowRight'||e.key==='d')keys.right=true;});
+        window.addEventListener('keyup',e=>{if(e.key==='ArrowUp'||e.key==='w')keys.up=false;if(e.key==='ArrowDown'||e.key==='s')keys.down=false;if(e.key==='ArrowLeft'||e.key==='a')keys.left=false;if(e.key==='ArrowRight'||e.key==='d')keys.right=false;});
+        window.addEventListener('resize',()=>{canvas.width=innerWidth;canvas.height=innerHeight;});
+        
+        // عند بداية اللعب
+        startGameBtn.addEventListener('click',()=>{
+            // قم بتهيئة Tone.js عند تفاعل المستخدم الأول
+            if (Tone.context.state !== 'running') {
+                Tone.context.resume();
+            }
+            init();
+            animate();
+            spawnEnemies();
+            modalEl.classList.add('hidden');
+            
+            if (musicEnabled) {
+                musicLoop.start(0);
+                Tone.Transport.start();
+            }
+
+            // بدء المؤقت
+            timerInterval = setInterval(() => {
+                gameTime--;
+                updateTimerDisplay();
+                if (gameTime <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        });
+
+        // أحداث أزرار الإعدادات
+        settingsBtn.addEventListener('click', () => {
+            updateSettingsUI(); // تحديث واجهة المستخدم عند فتح القائمة
+            settingsModal.classList.remove('hidden');
+        });
+
+        closeSettingsBtn.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+        });
+
+        toggleSfxBtn.addEventListener('click', () => {
+            sfxEnabled = !sfxEnabled;
+            saveGameData();
+            updateSettingsUI(); // تحديث النص فورًا
+        });
+
+        toggleMusicBtn.addEventListener('click', () => {
+            musicEnabled = !musicEnabled;
+            if (musicEnabled) {
+                if (Tone.context.state !== 'running') {
+                    Tone.context.resume();
+                }
+                musicLoop.start(0);
+                Tone.Transport.start();
+            } else {
+                musicLoop.stop();
+                Tone.Transport.stop();
+            }
+            saveGameData();
+            updateSettingsUI(); // تحديث النص فورًا
+        });
+
+        addCoinsBtn.addEventListener('click', () => {
+            gameData.coins += 9000;
+            coinsEl.innerHTML = gameData.coins;
+            saveGameData();
+            updateShopUI();
+        });
+
+        loadGameData();
+        showStartScreen();
+    </script>
+</body>
+</html>
